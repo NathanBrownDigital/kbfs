@@ -504,8 +504,9 @@ func doInit(ctx Context, params InitParams, keybaseServiceCn KeybaseServiceCn, l
 
 	// TODO: Don't turn on journaling if either -bserver or
 	// -mdserver point to local implementations.
+	var limiter diskLimiter
 	if len(params.WriteJournalRoot) != 0 {
-		err := config.EnableJournaling(
+		limiter, err = config.EnableJournaling(
 			context.Background(), params.WriteJournalRoot,
 			params.TLFJournalBackgroundWorkStatus)
 		if err != nil {
@@ -517,8 +518,8 @@ func doInit(ctx Context, params InitParams, keybaseServiceCn KeybaseServiceCn, l
 	// caching root directory, or enabled caching in the default directory.
 	if len(params.DiskCacheRoot) != 0 && (params.EnableDiskCache ||
 		params.DiskCacheRoot != defaultParams.DiskCacheRoot) {
-		err := config.EnableDiskBlockCache(context.TODO(),
-			params.DiskCacheRoot)
+		err = config.EnableDiskBlockCache(context.TODO(),
+			params.DiskCacheRoot, limiter)
 		if err != nil {
 			log.Warning("Could not initialize disk cache: %+v", err)
 			// TODO: Make this error less fatal later.

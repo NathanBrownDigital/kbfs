@@ -317,6 +317,7 @@ type backpressureDiskLimiter struct {
 	maxDelay            time.Duration
 	delayFn             func(context.Context, time.Duration) error
 	freeBytesAndFilesFn func() (int64, int64, error)
+	quotaFn             func() (int64, int64)
 
 	// lock protects everything in the trackers, including the
 	// (implicit) maximum values of the semaphores, but not the
@@ -338,8 +339,8 @@ func newBackpressureDiskLimiterWithFunctions(
 	quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold float64,
 	maxDelay time.Duration,
 	delayFn func(context.Context, time.Duration) error,
-	freeBytesAndFilesFn func() (int64, int64, error)) (
-	*backpressureDiskLimiter, error) {
+	freeBytesAndFilesFn func() (int64, int64, error),
+	quotaFn func() (int64, int64)) (*backpressureDiskLimiter, error) {
 	freeBytes, freeFiles, err := freeBytesAndFilesFn()
 	if err != nil {
 		return nil, err
@@ -364,8 +365,8 @@ func newBackpressureDiskLimiterWithFunctions(
 		return nil, err
 	}
 	bdl := &backpressureDiskLimiter{
-		log, maxDelay, delayFn, freeBytesAndFilesFn, sync.RWMutex{},
-		byteTracker, fileTracker, quotaTracker,
+		log, maxDelay, delayFn, freeBytesAndFilesFn, quotaFn,
+		sync.RWMutex{}, byteTracker, fileTracker, quotaTracker,
 	}
 	return bdl, nil
 }
@@ -412,14 +413,15 @@ func newBackpressureDiskLimiter(
 	byteLimit, fileLimit int64,
 	quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold float64,
 	maxDelay time.Duration,
-	journalPath string) (*backpressureDiskLimiter, error) {
+	journalPath string,
+	quotaFn func() (int64, int64)) (*backpressureDiskLimiter, error) {
 	return newBackpressureDiskLimiterWithFunctions(
 		log, backpressureMinThreshold, backpressureMaxThreshold,
 		limitFrac, byteLimit, fileLimit,
 		quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold,
 		maxDelay, defaultDoDelay, func() (int64, int64, error) {
 			return defaultGetFreeBytesAndFiles(journalPath)
-		})
+		}, quotaFn)
 }
 
 type bdlSnapshot struct {

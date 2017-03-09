@@ -308,6 +308,7 @@ type backpressureDiskLimiter struct {
 	// actual semaphore itself.
 	lock                     sync.RWMutex
 	byteTracker, fileTracker *backpressureTracker
+	quotaTracker             *quotaBackpressureTracker
 }
 
 var _ diskLimiter = (*backpressureDiskLimiter)(nil)
@@ -318,7 +319,9 @@ var _ diskLimiter = (*backpressureDiskLimiter)(nil)
 func newBackpressureDiskLimiterWithFunctions(
 	log logger.Logger,
 	backpressureMinThreshold, backpressureMaxThreshold, limitFrac float64,
-	byteLimit, fileLimit int64, maxDelay time.Duration,
+	byteLimit, fileLimit int64,
+	quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold float64,
+	maxDelay time.Duration,
 	delayFn func(context.Context, time.Duration) error,
 	freeBytesAndFilesFn func() (int64, int64, error)) (
 	*backpressureDiskLimiter, error) {
@@ -338,9 +341,16 @@ func newBackpressureDiskLimiterWithFunctions(
 	if err != nil {
 		return nil, err
 	}
+	quotaTracker, err := newQuotaBackpressureTracker(
+		quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold,
+		// TODO: Fill in with real values.
+		10*1024*1024, 0)
+	if err != nil {
+		return nil, err
+	}
 	bdl := &backpressureDiskLimiter{
 		log, maxDelay, delayFn, freeBytesAndFilesFn, sync.RWMutex{},
-		byteTracker, fileTracker,
+		byteTracker, fileTracker, quotaTracker,
 	}
 	return bdl, nil
 }
@@ -384,12 +394,15 @@ func defaultGetFreeBytesAndFiles(path string) (int64, int64, error) {
 func newBackpressureDiskLimiter(
 	log logger.Logger,
 	backpressureMinThreshold, backpressureMaxThreshold, limitFrac float64,
-	byteLimit, fileLimit int64, maxDelay time.Duration,
+	byteLimit, fileLimit int64,
+	quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold float64,
+	maxDelay time.Duration,
 	journalPath string) (*backpressureDiskLimiter, error) {
 	return newBackpressureDiskLimiterWithFunctions(
 		log, backpressureMinThreshold, backpressureMaxThreshold,
-		limitFrac, byteLimit, fileLimit, maxDelay,
-		defaultDoDelay, func() (int64, int64, error) {
+		limitFrac, byteLimit, fileLimit,
+		quotaBackpressureMinThreshold, quotaBackpressureMaxThreshold,
+		maxDelay, defaultDoDelay, func() (int64, int64, error) {
 			return defaultGetFreeBytesAndFiles(journalPath)
 		})
 }

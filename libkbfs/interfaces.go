@@ -72,6 +72,10 @@ type clockGetter interface {
 	Clock() Clock
 }
 
+type diskLimiterGetter interface {
+	DiskLimiter() DiskLimiter
+}
+
 // Block just needs to be (de)serialized using msgpack
 type Block interface {
 	dataVersioner
@@ -1488,6 +1492,7 @@ type Config interface {
 	currentSessionGetterGetter
 	diskBlockCacheGetter
 	clockGetter
+	diskLimiterGetter
 	KBFSOps() KBFSOps
 	SetKBFSOps(KBFSOps)
 	KBPKI() KBPKI
